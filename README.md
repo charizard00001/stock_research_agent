@@ -190,23 +190,14 @@ stock_research_agent/
 
 Deploy the backend on **Render** (free) and the frontend on **Vercel** (free) to access the app from any device.
 
-### 1. Push to GitHub
+**GitHub repo**: https://github.com/charizard00001/stock_research_agent  
+**Frontend (Vercel)**: https://frontend-eight-zeta-11.vercel.app *(already deployed & connected to GitHub — auto-deploys on push)*
 
-Your repo must be on GitHub for both services to connect.
+### 1. Deploy Backend on Render
 
-```bash
-git init
-git add .
-git commit -m "initial commit"
-git remote add origin https://github.com/<your-username>/stock_research_agent.git
-git push -u origin main
-```
-
-### 2. Deploy Backend on Render
-
-1. Go to [render.com](https://render.com) and sign up / log in (GitHub login recommended).
+1. Go to [render.com](https://render.com) and sign up / log in with your **GitHub account**.
 2. Click **New → Web Service**.
-3. Connect your GitHub repo (`stock_research_agent`).
+3. Click **Connect a repository** and select `charizard00001/stock_research_agent`.
 4. Configure the service:
 
 | Setting | Value |
@@ -214,74 +205,64 @@ git push -u origin main
 | **Name** | `equilyze-api` |
 | **Region** | Singapore (or closest to you) |
 | **Runtime** | Docker |
+| **Dockerfile Path** | `./Dockerfile` |
 | **Instance Type** | Free |
 
-5. Add **Environment Variables** (under the "Environment" section):
+5. Scroll down to **Environment Variables** and add:
 
 | Key | Value |
 |-----|-------|
 | `OPENROUTER_API_KEY` | Your OpenRouter API key |
 | `TAVILY_API_KEY` | Your Tavily API key |
-| `FRONTEND_URL` | *(leave blank for now, set after Vercel deploy)* |
+| `FRONTEND_URL` | `https://frontend-eight-zeta-11.vercel.app` |
 
 6. Click **Create Web Service**. Render will build from the `Dockerfile` and deploy.
-7. Once live, your backend URL will be: `https://equilyze-api.onrender.com`
+7. Wait for the build to finish (first build takes 3-5 min).
+8. Once live, your backend URL will be: `https://equilyze-api.onrender.com`
+9. Verify: open `https://equilyze-api.onrender.com/api/health` — should return `{"status": "ok"}`.
 
-> **Note**: Free tier spins down after 15 min of inactivity. First request after idle takes ~30-50s.
+> **Note**: Free tier spins down after 15 min of inactivity. First request after idle takes ~30-50s to cold start.
 
-### 3. Deploy Frontend on Vercel
+### 2. Update Backend URL in vercel.json (if needed)
 
-1. Go to [vercel.com](https://vercel.com) and sign up / log in.
-2. Click **Add New → Project** and import your GitHub repo.
-3. Configure the project:
-
-| Setting | Value |
-|---------|-------|
-| **Framework Preset** | Vite |
-| **Root Directory** | `frontend` |
-
-4. Click **Deploy**. Vercel will build and deploy automatically.
-5. Your frontend URL will be something like: `https://your-project.vercel.app`
-
-**Or use the Vercel CLI:**
-
-```bash
-cd frontend
-npm i -g vercel
-vercel login
-vercel --prod
-```
-
-### 4. Wire Everything Together
-
-After both are deployed:
-
-1. **Update `vercel.json`** — Replace the backend URL if your Render service name differs from `equilyze-api`:
+The `frontend/vercel.json` is already configured to proxy `/api/*` to `https://equilyze-api.onrender.com`. If you chose a different service name on Render, update it:
 
 ```json
 {
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://<your-render-service>.onrender.com/api/:path*"
+      "destination": "https://<your-actual-render-name>.onrender.com/api/:path*"
     }
   ]
 }
 ```
 
-2. **Set `FRONTEND_URL` on Render** — Go to your Render service → Environment → add:
+Then push the change:
+```bash
+git add frontend/vercel.json
+git commit -m "fix: update backend URL"
+git push
+```
+Vercel will auto-redeploy.
 
-| Key | Value |
-|-----|-------|
-| `FRONTEND_URL` | `https://your-project.vercel.app` |
+### 3. Verify End-to-End
 
-3. **Redeploy both** — Push a commit or trigger manual deploys on both services.
+1. Open your Vercel URL: https://frontend-eight-zeta-11.vercel.app
+2. You should see the upload screen with a model selection dropdown.
+3. Upload a portfolio screenshot and select a model.
+4. The analysis should run through all 6 agents and display the report.
+5. Chat should work using the same selected model.
 
-### 5. Verify
+### Troubleshooting Deployment
 
-- Visit your Vercel URL — the upload screen should load.
-- Check backend health: `https://equilyze-api.onrender.com/api/health` should return `{"status": "ok"}`.
-- Upload a portfolio screenshot and run a full analysis.
+| Issue | Fix |
+|-------|-----|
+| Render build fails | Check the build logs — usually a missing dependency or Dockerfile issue |
+| Frontend loads but API calls fail | Check that `vercel.json` has the correct Render URL |
+| CORS errors in browser console | Verify `FRONTEND_URL` env var on Render matches your Vercel URL exactly (including `https://`) |
+| Render returns 502/503 | The free instance is cold-starting — wait 30-50s and retry |
+| Changes not reflecting | Push to GitHub — both Render and Vercel auto-deploy on push |
 
 ### Deployment Files Reference
 
@@ -289,5 +270,5 @@ After both are deployed:
 |------|---------|
 | `Dockerfile` | Backend container image for Render |
 | `.dockerignore` | Excludes frontend, venv, .env from Docker build |
-| `render.yaml` | Render Blueprint (optional one-click deploy) |
+| `render.yaml` | Render Blueprint (optional — used if you click "New from Blueprint") |
 | `frontend/vercel.json` | Rewrites `/api/*` requests to the Render backend |
